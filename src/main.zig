@@ -255,15 +255,16 @@ pub fn parseToI32(s: []const u8) !i32 {
     return std.fmt.parseInt(i32, s, 10);
 }
 
-fn recursiveEval(ast:  * const Node) !i32  {
+fn recursiveEval(allocator: std.mem.Allocator, ast:  * Node) !i32  {
     if (ast.*.leftNode == null and ast.*.rightNode == null and ast.*.token.type == TokenType.NUMBER) {
         return parseToI32(ast.token.literal);
     }
 
-    const ln = try recursiveEval(ast.*.leftNode.?);
-    const rn = try recursiveEval(ast.*.rightNode.?);
+    const ln = try recursiveEval(allocator, ast.*.leftNode.?);
+    const rn = try recursiveEval(allocator, ast.*.rightNode.?);
+    const currentTokenType = ast.*.token.type;
 
-    return switch (ast.*.token.type) {
+    return switch (currentTokenType) {
         .ASTERISK => return ln * rn,
         .SLASH => return @divFloor(ln, rn),
         .PLUS => return ln + rn,
@@ -276,24 +277,23 @@ fn eval(allocator: std.mem.Allocator, i: []const u8) !i32 {
     var parser = Parser.init(allocator, i);
     const ast = try parser.parse();
 
-    return try recursiveEval(ast);
+    defer freeAST(allocator, ast);
+
+    return try recursiveEval(allocator, ast);
 }
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
-    var parser = Parser.init(allocator, "2/4-3*1");
-    const node = try parser.parse();
-    node.token.print();
-    node.*.rightNode.?.token.print();
-    node.*.leftNode.?.token.print();
+    defer _ = gpa.deinit();
 
-    //node.*.leftNode.?.rightNode.?.token.print();
-    //node.*.leftNode.?.leftNode.?.token.print();
+    const args = try std.process.argsAlloc(allocator);
+    defer std.process.argsFree(allocator, args);
+    
+    const result = try eval(allocator, args[1]);
 
-    //node.*.rightNode.?.rightNode.?.token.print();
-    //node.*.rightNode.?.leftNode.?.token.print();
-}
+    std.debug.print("{d}\n", .{result});
+ }
 
 // lexer tests
 test "lexer should return an error when there's an illegal character" {
@@ -357,7 +357,7 @@ test "lexer should tokenize all cases" {
 }
 
 // PARSER
-test "should stop program when there's a gramma error" {
+test "parser should stop program when there's a gramma error" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
     var parser = Parser.init(allocator, "1*2-3*1++2");
@@ -371,12 +371,11 @@ test "should stop program when there's a gramma error" {
 // TODO: add tests to check each element of the tree
 
 // EVAL
-// TODO: check for memory leaks
 test "eval should be ok" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
-    const cases = [7][]const u8 {
+    const cases = [8][]const u8 {
         "10*10",
         "10-10",
         "10+10",
@@ -384,15 +383,17 @@ test "eval should be ok" {
         "2*2+5*5-144/12",
         "2*2/2",
         "2/2*2-1",
+        "10*1000"
     };
-    const results = [7] u8 {
+    const results = [8] i32 {
         100,
         0,
         20,
         1,
         17,
         2,
-        1
+        1,
+        10000
     };
 
     for(cases, results) |case, result| {
@@ -400,4 +401,6 @@ test "eval should be ok" {
 
         try std.testing.expect(result == r);
     }
+
+    try std.testing.expect(gpa.deinit() == .ok);
 }
