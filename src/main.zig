@@ -26,10 +26,12 @@ fn recursiveEval(allocator: std.mem.Allocator, ast:  * pr.Node) !i32  {
 
     return switch (currentTokenType) {
         .ASTERISK => return ln * rn,
-        .SLASH => return @divFloor(ln, rn),
         .PLUS => return ln + rn,
         .MINUS => return ln - rn,
-        else => 0,
+        else => {
+            if (rn == 0) return errors.LanguageError.ZeroDivisionError;
+            return @divFloor(ln, rn);
+        },
     };
 }
 
@@ -48,8 +50,9 @@ pub fn main() !void {
     
     const result = eval(allocator, args[1]) catch |err| {
         switch(err) {
-            errors.LanguageError.SyntaxError => std.debug.print("Syntax error \n", .{}),
+            errors.LanguageError.SyntaxError => std.debug.print("SyntaxError \n", .{}),
             errors.LanguageError.IllegalCharacterError => std.debug.print("IllegalCharacter\n", .{}),
+            errors.LanguageError.ZeroDivisionError => std.debug.print("ZeroDivisionError\n", .{}),
             else => std.debug.print("Unknown error\n", .{}),
         }
         std.process.exit(1);

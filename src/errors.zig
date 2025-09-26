@@ -1,4 +1,5 @@
 pub const LanguageError = error {
     SyntaxError,
-    IllegalCharacterError
+    IllegalCharacterError,
+    ZeroDivisionError
 };
