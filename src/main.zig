@@ -47,6 +47,18 @@ const Token = struct {
     }
 };
 
+fn isWhitespace(c: u8) bool {
+    return c == ' ' or c == '\n' or c == '\r' or c == '\t';
+}
+
+fn isOperator(c: u8) bool {
+    return c == '-' or c == '+' or c == '*' or c == '/';
+}
+
+fn isNumber(c: u8) bool {
+    return c >= '0' and c <= '9';
+}
+
 // LEXER
 const Lexer = struct {
     input: []const u8,
@@ -100,33 +112,26 @@ const Lexer = struct {
 
     fn peakNumber(self: *Lexer) []const u8 {
         const start = self.currentPosition;
-        var end = self.currentPosition;
-        while (self.currentChar >= '0' and self.currentChar <= '9') {
-            end += 1;
+        while (isNumber(self.currentChar)) {
             self.readChar();
         }
-        return self.input[start..end];
+        return self.input[start..self.currentPosition];
     }
 
     fn skipWhitespace(self: *Lexer) void {
-        while (self.currentChar == ' ' or self.currentChar == '\t' or self.currentChar == '\n' or self.currentChar == '\r') {
+        while (isWhitespace(self.currentChar)) {
             self.readChar();
         }
     }
 
     fn readChar(self: * Lexer) void {
-        // is it the end of the array ?
         if (self.nextPosition >= self.input.len) {
-            // yes
             self.currentChar = 0;
         } else  {
-            // no and get the char of the next position
             self.currentChar = self.input[self.nextPosition];
         }
 
-        // update current position
         self.currentPosition = self.nextPosition;
-        // go to next position
         self.nextPosition += 1;
     }
 };
@@ -176,10 +181,14 @@ const Parser = struct {
         }
 
         var currentToken = try self.lexer.nextToken();
-        var lastToken: ?Token = null;
+
+        if (currentToken.type != TokenType.NUMBER ) return LanguageError.SyntaxError;
+
+        var nextToken = try self.lexer.nextToken();
+
         while (currentToken.type != TokenType.EOF) {
-            if (lastToken != null) {
-                try isValidPrevToken(currentToken, lastToken.?);
+            if (nextToken.type == currentToken.type or nextToken.type == TokenType.EOF and currentToken.type != TokenType.NUMBER) {
+                return LanguageError.SyntaxError;
             }
 
             switch (currentToken.type) {
@@ -207,8 +216,9 @@ const Parser = struct {
                 }
             }
 
-            lastToken = currentToken;
-            currentToken = try self.lexer.nextToken();
+            currentToken = nextToken;
+            nextToken = try self.lexer.nextToken();
+
         }
 
         while (operators.items.len > 0 ) {
@@ -224,12 +234,6 @@ const Parser = struct {
 
 
         return operands.items[0];
-    }
-
-    inline fn isValidPrevToken(currentToken: Token, prevToken: Token) LanguageError!void  {
-        if (currentToken.type == prevToken.type) {
-            return LanguageError.SyntaxError;
-        }
     }
 
     fn makeNode(self: *Self, token: Token) !*Node {
@@ -283,14 +287,22 @@ fn eval(allocator: std.mem.Allocator, i: []const u8) !i32 {
 }
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    const allocator = arena.allocator();
 
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
     
-    const result = try eval(allocator, args[1]);
+    const result = eval(allocator, args[1]) catch |err| {
+        switch(err) {
+            LanguageError.SyntaxError => std.debug.print("Syntax error \n", .{}),
+            LanguageError.IllegalCharacterError => std.debug.print("IllegalCharacter\n", .{}),
+            else => std.debug.print("unknown error\n", .{}),
+        }
+        std.process.exit(1);
+    };
 
     std.debug.print("{d}\n", .{result});
  }
@@ -305,7 +317,7 @@ test "lexer should tokenize all cases" {
     const cases = [3][]const u8 {
         "50 - 12 / 3 * 2 + 999999999",
         "100 / 5 + 60 - 8 * 3",
-        "45*                 2-120/6+                        9",
+        "45*                 2- 120/6+                        9",
     };
 
     const expected_tokens_matrix: [3][9]Token = .{
@@ -357,18 +369,23 @@ test "lexer should tokenize all cases" {
 }
 
 // PARSER
-test "parser should stop program when there's a gramma error" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    var parser = Parser.init(allocator, "1*2-3*1++2");
-    
-    const returnedError = parser.parse();
+test "parser should fail due syntax errors" {
+    const cases = [4][] const u8 {
+        "1*2-3*1++2",
+        "*1",
+        "1-",
+        "1+1+1+1+1+1+1+1+1+"
+    };
 
-    try std.testing.expect(gpa.deinit() == .ok);
-    try std.testing.expectError(LanguageError.SyntaxError, returnedError);
+    for (cases) |case| {
+        var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+        const allocator = gpa.allocator();
+        var parser = Parser.init(allocator, case);
+
+        try std.testing.expectError(LanguageError.SyntaxError,parser.parse());
+        try std.testing.expect(gpa.deinit() == .ok);
+    }
 }
-
-// TODO: add tests to check each element of the tree
 
 // EVAL
 test "eval should be ok" {
