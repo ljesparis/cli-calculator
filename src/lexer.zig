@@ -40,17 +40,22 @@ pub const Lexer = struct {
                 const parsedToken = self.peakNumber();
                 return tk.Token {.type = tk.TokenType.NUMBER, .literal = parsedToken  };
             },
-            '-', '+', '*', '/' => {
+            '-', '+', '*', '/', '(', ')' => {
                 var tokenType: tk.TokenType = undefined; var literal: []const u8 = undefined;
                 if (self.currentChar == '-') {
                     tokenType = tk.TokenType.MINUS; literal = "-";
                 } else if (self.currentChar == '+') {
                     tokenType = tk.TokenType.PLUS; literal = "+";
                 } else if (self.currentChar == '/') {
-                    tokenType = tk.TokenType.SLASH; literal = "/";
-                } else {
-                    tokenType = tk.TokenType.ASTERISK; literal = "*";
+                    tokenType = tk.TokenType.DIV; literal = "/";
+                } else if (self.currentChar == '*')  {
+                    tokenType = tk.TokenType.MUL; literal = "*";
+                } else if(self.currentChar == '(') {
+                    tokenType = tk.TokenType.LPAREN; literal = "(";
+                } else if (self.currentChar == ')') {
+                    tokenType = tk.TokenType.RPAREN; literal = ")";
                 }
+
                 const token = tk.Token {.type= tokenType, .literal = literal  };
                 self.readChar();
                 return token;
@@ -90,53 +95,64 @@ pub const Lexer = struct {
     }
 };
 
-// lexer tests
 test "lexer should return an error when there's an illegal character" {
     var lexer = Lexer.init("a");
     try std.testing.expectError(errors.LanguageError.IllegalCharacterError, lexer.nextToken());
 }
 
 test "lexer should tokenize all cases" {
-    const cases = [3][]const u8 {
+    const cases = [4][]const u8 {
         "50 - 12 / 3 * 2 + 999999999",
         "100 / 5 + 60 - 8 * 3",
         "45*                 2- 120/6+                        9",
+        "(10   +2) - (1)"
     };
 
-    const expected_tokens_matrix: [3][9]tk.Token = .{
+    const expected_tokens_matrix: [4][9]tk.Token = .{
         .{
             tk.Token{.type=tk.TokenType.NUMBER, .literal="50"},
             tk.Token{.type=tk.TokenType.MINUS, .literal= "-"},
             tk.Token{.type=tk.TokenType.NUMBER, .literal="12"},
-            tk.Token{.type=tk.TokenType.SLASH, .literal = "/"},
+            tk.Token{.type=tk.TokenType.DIV, .literal = "/"},
             tk.Token{.type=tk.TokenType.NUMBER, .literal="3"},
-            tk.Token{.type=tk.TokenType.ASTERISK, .literal = "*"},
+            tk.Token{.type=tk.TokenType.MUL, .literal = "*"},
             tk.Token{.type=tk.TokenType.NUMBER, .literal="2"},
             tk.Token{.type=tk.TokenType.PLUS, .literal = "+"},
             tk.Token{.type=tk.TokenType.NUMBER, .literal="999999999"},
         },
         .{
             tk.Token{.type=tk.TokenType.NUMBER, .literal="100"},
-            tk.Token{.type=tk.TokenType.SLASH, .literal = "/"},
+            tk.Token{.type=tk.TokenType.DIV, .literal = "/"},
             tk.Token{.type=tk.TokenType.NUMBER, .literal="5"},
             tk.Token{.type=tk.TokenType.PLUS, .literal = "+"},
             tk.Token{.type=tk.TokenType.NUMBER, .literal="60"},
             tk.Token{.type=tk.TokenType.MINUS, .literal = "-"},
             tk.Token{.type=tk.TokenType.NUMBER, .literal="8"},
-            tk.Token{.type=tk.TokenType.ASTERISK, .literal = "*"},
+            tk.Token{.type=tk.TokenType.MUL, .literal = "*"},
             tk.Token{.type=tk.TokenType.NUMBER, .literal="3"},
         },
         .{
             tk.Token{.type=tk.TokenType.NUMBER, .literal="45"},
-            tk.Token{.type=tk.TokenType.ASTERISK, .literal = "*"},
+            tk.Token{.type=tk.TokenType.MUL, .literal = "*"},
             tk.Token{.type=tk.TokenType.NUMBER, .literal="2"},
             tk.Token{.type=tk.TokenType.MINUS, .literal = "-"},
             tk.Token{.type=tk.TokenType.NUMBER, .literal="120"},
-            tk.Token{.type=tk.TokenType.SLASH, .literal = "/"},
+            tk.Token{.type=tk.TokenType.DIV, .literal = "/"},
             tk.Token{.type=tk.TokenType.NUMBER, .literal="6"},
             tk.Token{.type=tk.TokenType.PLUS, .literal = "+"},
             tk.Token{.type=tk.TokenType.NUMBER, .literal="9"},
-        }
+        },
+        .{
+            tk.Token{.type=tk.TokenType.LPAREN, .literal="("},
+            tk.Token{.type=tk.TokenType.NUMBER, .literal = "10"},
+            tk.Token{.type=tk.TokenType.PLUS, .literal="+"},
+            tk.Token{.type=tk.TokenType.NUMBER, .literal = "2"},
+            tk.Token{.type=tk.TokenType.RPAREN, .literal=")"},
+            tk.Token{.type=tk.TokenType.MINUS, .literal = "-"},
+            tk.Token{.type=tk.TokenType.LPAREN, .literal="("},
+            tk.Token{.type=tk.TokenType.NUMBER, .literal = "1"},
+            tk.Token{.type=tk.TokenType.RPAREN, .literal=")"},
+        },
     };
 
     for (cases, expected_tokens_matrix) |case, expected_tokens| {

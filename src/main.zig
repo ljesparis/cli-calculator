@@ -4,13 +4,13 @@ const lx = @import("lexer");
 const pr = @import("parser");
 const errors = @import("errors");
 
+
+// TODO: refactor parser code
 // TODO: support decimals
-// TODO: support left and right parentheses
 fn eval(allocator: std.mem.Allocator, i: []const u8) !i32 {
     var parser = pr.Parser.init(allocator, i);
+    defer parser.deinit();
     const ast = try parser.parse();
-
-    defer pr.freeAST(allocator, ast);
 
     return try recursiveEval(allocator, ast);
 }
@@ -25,7 +25,7 @@ fn recursiveEval(allocator: std.mem.Allocator, ast:  * pr.Node) !i32  {
     const currentTokenType = ast.*.token.type;
 
     return switch (currentTokenType) {
-        .ASTERISK => return ln * rn,
+        .MUL => return ln * rn,
         .PLUS => return ln + rn,
         .MINUS => return ln - rn,
         else => {
@@ -67,7 +67,7 @@ test "eval should be ok" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
-    const cases = [8][]const u8 {
+    const cases = [16][]const u8 {
         "10*10",
         "10-10",
         "10+10",
@@ -75,9 +75,17 @@ test "eval should be ok" {
         "2*2+5*5-144/12",
         "2*2/2",
         "2/2*2-1",
-        "10*1000"
+        "10*1000",
+        "(10+10) * 2",
+        "(10+10) * (1-1)",
+        "(2*10-10) * (2*4+2)",
+        "(5*5+10) * (2*4+2)",
+        "(2*(10-10)) * (2*(4+2))",
+        "((2*10) * (8/4)) + ((12/2) * (2*5))",
+        "(((2*2) - 2) * 3)",
+        "((((2*2)-2)-2)+3)"
     };
-    const results = [8] i32 {
+    const results = [16] i32 {
         100,
         0,
         20,
@@ -85,12 +93,19 @@ test "eval should be ok" {
         17,
         2,
         1,
-        10000
+        10000,
+        40,
+        0,
+        100,
+        350,
+        0,
+        100,
+        6,
+        3
     };
 
     for(cases, results) |case, result| {
         const r = try eval(allocator, case);
-
         try std.testing.expect(result == r);
     }
 

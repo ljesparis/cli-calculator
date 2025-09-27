@@ -1,11 +1,11 @@
 pub const TokenType = enum {
     PLUS,
     MINUS,
-    SLASH,
-    ASTERISK,
+    DIV,
+    MUL,
 
-    // LPAREN,
-    // RPAREN,
+    LPAREN,
+    RPAREN,
 
     NUMBER,
 
