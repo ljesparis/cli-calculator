@@ -5,57 +5,57 @@ const errors = @import("errors");
 
 pub const Node = struct {
     token: tk.Token,
-    leftNode: ?*Node,
-    rightNode: ?*Node,
+    left_node: ?*Node,
+    right_node: ?*Node,
 };
 
 pub fn freeAST(allocator: std.mem.Allocator, node: *Node) void {
-    if (node.*.leftNode) |ln| freeAST(allocator, ln);
-    if (node.*.rightNode) |rn| freeAST(allocator, rn);
+    if (node.*.left_node) |ln| freeAST(allocator, ln);
+    if (node.*.right_node) |rn| freeAST(allocator, rn);
 
     allocator.destroy(node);
 }
 
-fn postTokenChecker(currentToken: tk.Token, nextToken: tk.Token) errors.LanguageError!void {
-    switch(currentToken.type) {
-        .PLUS, .MINUS, .MUL, .DIV => return postOperatorChecker(nextToken),
-        .NUMBER => return postNumberChecker(nextToken),
-        .LPAREN => return postLeftParenthesisChecker(nextToken),
-        .RPAREN => return postRightParenthesisChecker(nextToken),
+fn postTokenChecker(current_token: tk.Token, next_token: tk.Token) errors.LanguageError!void {
+    switch (current_token.type) {
+        .PLUS, .MINUS, .MUL, .DIV => return postOperatorChecker(next_token),
+        .NUMBER => return postNumberChecker(next_token),
+        .LPAREN => return postLeftParenthesisChecker(next_token),
+        .RPAREN => return postRightParenthesisChecker(next_token),
         else => return,
     }
 }
 
-fn postNumberChecker(nextToken: tk.Token) errors.LanguageError!void {
-    switch (nextToken.type) {
+fn postNumberChecker(next_token: tk.Token) errors.LanguageError!void {
+    switch (next_token.type) {
         .LPAREN => return errors.LanguageError.SyntaxError,
         else => return,
     }
 }
 
-fn postLeftParenthesisChecker(nextToken: tk.Token) errors.LanguageError!void {
-    switch (nextToken.type) {
+fn postLeftParenthesisChecker(next_token: tk.Token) errors.LanguageError!void {
+    switch (next_token.type) {
         .PLUS, .MUL, .DIV, .EOF => return errors.LanguageError.SyntaxError,
         else => return,
     }
 }
 
-fn postRightParenthesisChecker(nextToken: tk.Token) errors.LanguageError!void {
-    switch (nextToken.type) {
+fn postRightParenthesisChecker(next_token: tk.Token) errors.LanguageError!void {
+    switch (next_token.type) {
         .NUMBER => return errors.LanguageError.SyntaxError,
         else => return,
     }
 }
 
-fn postOperatorChecker(nextToken: tk.Token) errors.LanguageError!void {
-    switch (nextToken.type) {
+fn postOperatorChecker(next_token: tk.Token) errors.LanguageError!void {
+    switch (next_token.type) {
         .RPAREN, .EOF => return errors.LanguageError.SyntaxError,
         else => return,
     }
 }
 
-fn preTokenChecker(currentToken: tk.Token, preToken: ?tk.Token) errors.LanguageError!void {
-    switch(currentToken.type) {
+fn preTokenChecker(current_token: tk.Token, preToken: ?tk.Token) errors.LanguageError!void {
+    switch (current_token.type) {
         .PLUS, .MINUS, .MUL, .DIV => return preOperatorChecker(preToken),
         .NUMBER => return preNumberChecker(preToken),
         .LPAREN => return preLeftParenthesisChecker(preToken),
@@ -64,37 +64,37 @@ fn preTokenChecker(currentToken: tk.Token, preToken: ?tk.Token) errors.LanguageE
     }
 }
 
-fn preNumberChecker(prevToken: ?tk.Token) errors.LanguageError!void {
-    if (prevToken == null) {
+fn preNumberChecker(prev_token: ?tk.Token) errors.LanguageError!void {
+    if (prev_token == null) {
         return;
     }
-    switch (prevToken.?.type) {
+    switch (prev_token.?.type) {
         .RPAREN => return errors.LanguageError.SyntaxError,
         else => return,
     }
 }
 
-fn preLeftParenthesisChecker(prevToken: ?tk.Token) errors.LanguageError!void {
-    if (prevToken == null) {
+fn preLeftParenthesisChecker(prev_token: ?tk.Token) errors.LanguageError!void {
+    if (prev_token == null) {
         return;
     }
-    switch (prevToken.?.type) {
+    switch (prev_token.?.type) {
         .NUMBER, .RPAREN => return errors.LanguageError.SyntaxError,
         else => return,
     }
 }
 
-fn preRightParenthesisChecker(prevToken: ?tk.Token) errors.LanguageError!void {
-    if (prevToken == null) return errors.LanguageError.SyntaxError;
-    switch (prevToken.?.type) {
+fn preRightParenthesisChecker(prev_token: ?tk.Token) errors.LanguageError!void {
+    if (prev_token == null) return errors.LanguageError.SyntaxError;
+    switch (prev_token.?.type) {
         .PLUS, .MINUS, .MUL, .DIV, .LPAREN => return errors.LanguageError.SyntaxError,
         else => return,
     }
 }
 
-fn preOperatorChecker(prevToken: ?tk.Token) errors.LanguageError!void {
-    if (prevToken == null) return errors.LanguageError.SyntaxError;
-    switch (prevToken.?.type) {
+fn preOperatorChecker(prev_token: ?tk.Token) errors.LanguageError!void {
+    if (prev_token == null) return errors.LanguageError.SyntaxError;
+    switch (prev_token.?.type) {
         .LPAREN, .PLUS, .MINUS, .MUL, .DIV => return errors.LanguageError.SyntaxError,
         else => return,
     }
@@ -103,105 +103,92 @@ fn preOperatorChecker(prevToken: ?tk.Token) errors.LanguageError!void {
 pub const Parser = struct {
     allocator: std.mem.Allocator,
     lexer: lx.Lexer,
-    operands: std.ArrayList(*Node),
-    operators: std.ArrayList(*Node),
+    operandsStack: std.ArrayList(*Node) = .{},
+    operatorsStack: std.ArrayList(tk.Token) = .{},
 
     const Self = @This();
 
     pub fn init(allocator: std.mem.Allocator, input: []const u8) Self {
-        return .{ .allocator = allocator, .lexer = lx.Lexer.init(input), .operands = .empty, .operators = .empty };
+        return .{ .allocator = allocator, .lexer = lx.Lexer.init(input) };
     }
 
     pub fn deinit(self: *Self) void {
-        for (self.operands.items) |operand| {
+        for (self.operandsStack.items) |operand| {
             freeAST(self.allocator, operand);
         }
 
-        for (self.operators.items) |operator| {
-            freeAST(self.allocator, operator);
-        }
-        self.operands.deinit(self.allocator);
-        self.operators.deinit(self.allocator);
+        self.operandsStack.deinit(self.allocator);
+        self.operatorsStack.deinit(self.allocator);
     }
 
     pub fn parse(self: *Self) !*Node {
-        var currentToken = try self.lexer.nextToken();
-        var nextToken = try self.lexer.nextToken();
-        var prevToken: ?tk.Token  = null;
+        var current_token = try self.lexer.nextToken();
+        var next_token = try self.lexer.nextToken();
+        var prev_token: ?tk.Token = null;
 
-        while (currentToken.type != tk.TokenType.EOF) {
-            try preTokenChecker(currentToken, prevToken);
-            try postTokenChecker(currentToken, nextToken);
-            
-            switch (currentToken.type) {
+        while (current_token.type != tk.TokenType.EOF) {
+            try preTokenChecker(current_token, prev_token);
+            try postTokenChecker(current_token, next_token);
+
+            switch (current_token.type) {
                 .NUMBER => {
-                    const node = try self.makeNode(currentToken);
-                    try self.operands.append(self.allocator, node);
+                    const node = try self.makeNode(current_token, null, null);
+                    try self.operandsStack.append(self.allocator, node);
                 },
                 .LPAREN => {
-                    const node = try self.makeNode(currentToken);
-                    try self.operators.append(self.allocator, node);
+                    try self.operatorsStack.append(self.allocator, current_token);
                 },
                 .RPAREN => {
-                    var index: usize = self.operators.items.len - 1;
-                    while (self.operators.items[index].*.token.type != tk.TokenType.LPAREN) {
+                    var index: usize = self.getOperatorsStackLen() - 1;
+                    while (self.operatorsStack.items[index].type != tk.TokenType.LPAREN) {
                         index -= 1;
                     }
 
-                    freeAST(self.allocator, self.operators.orderedRemove(index));
+                    _ = self.operatorsStack.orderedRemove(index);
 
-                    const op = self.operators.pop();
-                    const rightN = self.operands.pop();
-                    const leftN = self.operands.pop();
-
-                    op.?.*.rightNode = rightN;
-                    op.?.*.leftNode = leftN;
-
-                    try self.operands.append(self.allocator, op.?);
+                    try self.appendNode();
                 },
                 .DIV, .MUL, .PLUS, .MINUS => {
-                    while (self.operators.items.len > 0 and getTokenWeight(self.operators.items[self.operators.items.len - 1].*.token) >= getTokenWeight(currentToken)) {
-                        const op = self.operators.pop();
-                        const rightN = self.operands.pop();
-                        const leftN = self.operands.pop();
-
-                        op.?.*.rightNode = rightN;
-                        op.?.*.leftNode = leftN;
-
-                        try self.operands.append(self.allocator, op.?);
+                    while (self.getOperatorsStackLen() > 0 and getTokenWeight(self.operatorsStack.getLast()) >= getTokenWeight(current_token)) {
+                        try self.appendNode();
                     }
 
-                    const node = try self.makeNode(currentToken);
-                    try self.operators.append(self.allocator, node);
+                    try self.operatorsStack.append(self.allocator, current_token);
                 },
                 else => {},
             }
 
-            prevToken = currentToken;
-            currentToken = nextToken;
-            nextToken = try self.lexer.nextToken();
+            prev_token = current_token;
+            current_token = next_token;
+            next_token = try self.lexer.nextToken();
         }
 
-        while (self.operators.items.len > 0) {
-            const op = self.operators.pop();
-            const rightN = self.operands.pop();
-            const leftN = self.operands.pop();
-
-            op.?.*.rightNode = rightN;
-            op.?.*.leftNode = leftN;
-
-            try self.operands.append(self.allocator, op.?);
+        while (self.getOperatorsStackLen() > 0) {
+            try self.appendNode();
         }
 
-        return self.operands.items[0];
+        return self.operandsStack.pop().?;
     }
 
-    fn makeNode(self: *Self, token: tk.Token) !*Node {
+    fn appendNode(self: *Self) !void {
+        const op = self.operatorsStack.pop();
+        const right_node = self.operandsStack.pop();
+        const left_node = self.operandsStack.pop();
+
+        const newNode = try self.makeNode(op.?, left_node, right_node);
+        try self.operandsStack.append(self.allocator, newNode);
+    }
+
+    fn getOperatorsStackLen(self: *Self) usize {
+        return self.operatorsStack.items.len;
+    }
+
+    fn makeNode(self: *Self, token: tk.Token, left_node: ?*Node, right_node: ?*Node) !*Node {
         const node = try self.allocator.create(Node);
         node.* = .{
             .token = token,
-            .leftNode = null,
-            .rightNode = null,
+            .left_node = left_node,
+            .right_node = right_node,
         };
         return node;
     }
@@ -216,7 +203,7 @@ pub const Parser = struct {
 };
 
 test "parser should fail due syntax errors" {
-    const cases = [7][] const u8 {
+    const cases = [7][]const u8{
         "1*2-3*1++2",
         "*1",
         "1-",
@@ -231,7 +218,7 @@ test "parser should fail due syntax errors" {
         const allocator = gpa.allocator();
         var parser = Parser.init(allocator, case);
 
-        try std.testing.expectError(errors.LanguageError.SyntaxError,parser.parse());
+        try std.testing.expectError(errors.LanguageError.SyntaxError, parser.parse());
         parser.deinit();
         try std.testing.expect(gpa.deinit() == .ok);
     }
