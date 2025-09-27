@@ -3,8 +3,15 @@ const tk = @import("token");
 const lx = @import("lexer");
 const errors = @import("errors");
 
+const testing = std.testing;
+const Token = tk.Token;
+const TokenType = tk.TokenType;
+const Lexer = lx.Lexer;
+const LanguageError = errors.LanguageError;
+
+
 pub const Node = struct {
-    token: tk.Token,
+    token: Token,
     left_node: ?*Node,
     right_node: ?*Node,
 };
@@ -16,7 +23,7 @@ pub fn freeAST(allocator: std.mem.Allocator, node: *Node) void {
     allocator.destroy(node);
 }
 
-fn postTokenChecker(current_token: tk.Token, next_token: tk.Token) errors.LanguageError!void {
+fn postTokenChecker(current_token: Token, next_token: Token) LanguageError!void {
     switch (current_token.type) {
         .PLUS, .MINUS, .MUL, .DIV => return postOperatorChecker(next_token),
         .NUMBER => return postNumberChecker(next_token),
@@ -26,35 +33,35 @@ fn postTokenChecker(current_token: tk.Token, next_token: tk.Token) errors.Langua
     }
 }
 
-fn postNumberChecker(next_token: tk.Token) errors.LanguageError!void {
+fn postNumberChecker(next_token: Token) LanguageError!void {
     switch (next_token.type) {
-        .LPAREN => return errors.LanguageError.SyntaxError,
+        .LPAREN => return LanguageError.SyntaxError,
         else => return,
     }
 }
 
-fn postLeftParenthesisChecker(next_token: tk.Token) errors.LanguageError!void {
+fn postLeftParenthesisChecker(next_token: Token) LanguageError!void {
     switch (next_token.type) {
-        .PLUS, .MUL, .DIV, .EOF => return errors.LanguageError.SyntaxError,
+        .PLUS, .MUL, .DIV, .EOF => return LanguageError.SyntaxError,
         else => return,
     }
 }
 
-fn postRightParenthesisChecker(next_token: tk.Token) errors.LanguageError!void {
+fn postRightParenthesisChecker(next_token: Token) LanguageError!void {
     switch (next_token.type) {
-        .NUMBER => return errors.LanguageError.SyntaxError,
+        .NUMBER => return LanguageError.SyntaxError,
         else => return,
     }
 }
 
-fn postOperatorChecker(next_token: tk.Token) errors.LanguageError!void {
+fn postOperatorChecker(next_token: Token) LanguageError!void {
     switch (next_token.type) {
-        .RPAREN, .EOF => return errors.LanguageError.SyntaxError,
+        .RPAREN, .EOF => return LanguageError.SyntaxError,
         else => return,
     }
 }
 
-fn preTokenChecker(current_token: tk.Token, preToken: ?tk.Token) errors.LanguageError!void {
+fn preTokenChecker(current_token: Token, preToken: ?Token) LanguageError!void {
     switch (current_token.type) {
         .PLUS, .MINUS, .MUL, .DIV => return preOperatorChecker(preToken),
         .NUMBER => return preNumberChecker(preToken),
@@ -64,52 +71,52 @@ fn preTokenChecker(current_token: tk.Token, preToken: ?tk.Token) errors.Language
     }
 }
 
-fn preNumberChecker(prev_token: ?tk.Token) errors.LanguageError!void {
+fn preNumberChecker(prev_token: ?Token) LanguageError!void {
     if (prev_token == null) {
         return;
     }
     switch (prev_token.?.type) {
-        .RPAREN => return errors.LanguageError.SyntaxError,
+        .RPAREN => return LanguageError.SyntaxError,
         else => return,
     }
 }
 
-fn preLeftParenthesisChecker(prev_token: ?tk.Token) errors.LanguageError!void {
+fn preLeftParenthesisChecker(prev_token: ?Token) LanguageError!void {
     if (prev_token == null) {
         return;
     }
     switch (prev_token.?.type) {
-        .NUMBER, .RPAREN => return errors.LanguageError.SyntaxError,
+        .NUMBER, .RPAREN => return LanguageError.SyntaxError,
         else => return,
     }
 }
 
-fn preRightParenthesisChecker(prev_token: ?tk.Token) errors.LanguageError!void {
-    if (prev_token == null) return errors.LanguageError.SyntaxError;
+fn preRightParenthesisChecker(prev_token: ?Token) LanguageError!void {
+    if (prev_token == null) return LanguageError.SyntaxError;
     switch (prev_token.?.type) {
-        .PLUS, .MINUS, .MUL, .DIV, .LPAREN => return errors.LanguageError.SyntaxError,
+        .PLUS, .MINUS, .MUL, .DIV, .LPAREN => return LanguageError.SyntaxError,
         else => return,
     }
 }
 
-fn preOperatorChecker(prev_token: ?tk.Token) errors.LanguageError!void {
-    if (prev_token == null) return errors.LanguageError.SyntaxError;
+fn preOperatorChecker(prev_token: ?Token) LanguageError!void {
+    if (prev_token == null) return LanguageError.SyntaxError;
     switch (prev_token.?.type) {
-        .LPAREN, .PLUS, .MINUS, .MUL, .DIV => return errors.LanguageError.SyntaxError,
+        .LPAREN, .PLUS, .MINUS, .MUL, .DIV => return LanguageError.SyntaxError,
         else => return,
     }
 }
 
 pub const Parser = struct {
     allocator: std.mem.Allocator,
-    lexer: lx.Lexer,
+    lexer: Lexer,
     operandsStack: std.ArrayList(*Node) = .{},
-    operatorsStack: std.ArrayList(tk.Token) = .{},
+    operatorsStack: std.ArrayList(Token) = .{},
 
     const Self = @This();
 
     pub fn init(allocator: std.mem.Allocator, input: []const u8) Self {
-        return .{ .allocator = allocator, .lexer = lx.Lexer.init(input) };
+        return .{ .allocator = allocator, .lexer = Lexer.init(input) };
     }
 
     pub fn deinit(self: *Self) void {
@@ -124,9 +131,9 @@ pub const Parser = struct {
     pub fn parse(self: *Self) !*Node {
         var current_token = try self.lexer.nextToken();
         var next_token = try self.lexer.nextToken();
-        var prev_token: ?tk.Token = null;
+        var prev_token: ?Token = null;
 
-        while (current_token.type != tk.TokenType.EOF) {
+        while (current_token.type != TokenType.EOF) {
             try preTokenChecker(current_token, prev_token);
             try postTokenChecker(current_token, next_token);
 
@@ -140,7 +147,7 @@ pub const Parser = struct {
                 },
                 .RPAREN => {
                     var index: usize = self.getOperatorsStackLen() - 1;
-                    while (self.operatorsStack.items[index].type != tk.TokenType.LPAREN) {
+                    while (self.operatorsStack.items[index].type != TokenType.LPAREN) {
                         index -= 1;
                     }
 
@@ -183,7 +190,7 @@ pub const Parser = struct {
         return self.operatorsStack.items.len;
     }
 
-    fn makeNode(self: *Self, token: tk.Token, left_node: ?*Node, right_node: ?*Node) !*Node {
+    fn makeNode(self: *Self, token: Token, left_node: ?*Node, right_node: ?*Node) !*Node {
         const node = try self.allocator.create(Node);
         node.* = .{
             .token = token,
@@ -193,7 +200,7 @@ pub const Parser = struct {
         return node;
     }
 
-    inline fn getTokenWeight(token: tk.Token) u8 {
+    inline fn getTokenWeight(token: Token) u8 {
         switch (token.type) {
             .DIV, .MUL => return 2,
             .MINUS, .PLUS => return 1,
@@ -202,7 +209,7 @@ pub const Parser = struct {
     }
 };
 
-test "parser should fail due syntax errors" {
+test "parser should fail due syntax error" {
     const cases = [7][]const u8{
         "1*2-3*1++2",
         "*1",
@@ -214,12 +221,9 @@ test "parser should fail due syntax errors" {
     };
 
     for (cases) |case| {
-        var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-        const allocator = gpa.allocator();
-        var parser = Parser.init(allocator, case);
+        var parser = Parser.init(testing.allocator, case);
 
-        try std.testing.expectError(errors.LanguageError.SyntaxError, parser.parse());
+        try testing.expectError(LanguageError.SyntaxError, parser.parse());
         parser.deinit();
-        try std.testing.expect(gpa.deinit() == .ok);
     }
 }

@@ -2,6 +2,9 @@ const std = @import("std");
 const tk = @import("token");
 const errors = @import("errors");
 
+const Token = tk.Token;
+const TokenType = tk.TokenType;
+
 fn isWhitespace(c: u8) bool {
     return c == ' ' or c == '\n' or c == '\r' or c == '\t';
 }
@@ -16,53 +19,53 @@ fn isNumber(c: u8) bool {
 
 pub const Lexer = struct {
     input: []const u8,
-    currentPosition: usize,
-    nextPosition: usize,
-    currentChar: u8,
+    current_position: usize,
+    next_position: usize,
+    current_char: u8,
     
     const Self = @This();
 
     pub fn init(input: []const u8) Self {
         var lexer: Lexer = .{
             .input =  input,
-            .currentPosition = 0,
-            .nextPosition = 0,
-            .currentChar = 0,
+            .current_position = 0,
+            .next_position = 0,
+            .current_char = 0,
         };
         lexer.readChar();
         return lexer;
     }
 
-    pub fn nextToken(self: *Lexer) errors.LanguageError!tk.Token {
+    pub fn nextToken(self: *Lexer) errors.LanguageError!Token {
         self.skipWhitespace();
-        return switch (self.currentChar) {
+        return switch (self.current_char) {
             '0' ... '9' => {
                 const parsedToken = self.peakNumber();
-                return tk.Token {.type = tk.TokenType.NUMBER, .literal = parsedToken  };
+                return Token {.type = TokenType.NUMBER, .literal = parsedToken  };
             },
             '-', '+', '*', '/', '(', ')' => {
-                var tokenType: tk.TokenType = undefined; var literal: []const u8 = undefined;
-                if (self.currentChar == '-') {
-                    tokenType = tk.TokenType.MINUS; literal = "-";
-                } else if (self.currentChar == '+') {
-                    tokenType = tk.TokenType.PLUS; literal = "+";
-                } else if (self.currentChar == '/') {
-                    tokenType = tk.TokenType.DIV; literal = "/";
-                } else if (self.currentChar == '*')  {
-                    tokenType = tk.TokenType.MUL; literal = "*";
-                } else if(self.currentChar == '(') {
-                    tokenType = tk.TokenType.LPAREN; literal = "(";
-                } else if (self.currentChar == ')') {
-                    tokenType = tk.TokenType.RPAREN; literal = ")";
+                var tokenType: TokenType = undefined; var literal: []const u8 = undefined;
+                if (self.current_char == '-') {
+                    tokenType = TokenType.MINUS; literal = "-";
+                } else if (self.current_char == '+') {
+                    tokenType = TokenType.PLUS; literal = "+";
+                } else if (self.current_char == '/') {
+                    tokenType = TokenType.DIV; literal = "/";
+                } else if (self.current_char == '*')  {
+                    tokenType = TokenType.MUL; literal = "*";
+                } else if(self.current_char == '(') {
+                    tokenType = TokenType.LPAREN; literal = "(";
+                } else if (self.current_char == ')') {
+                    tokenType = TokenType.RPAREN; literal = ")";
                 }
 
-                const token = tk.Token {.type= tokenType, .literal = literal  };
+                const token = Token {.type= tokenType, .literal = literal  };
                 self.readChar();
                 return token;
             },
             else => {
-                if (self.currentChar == 0) {
-                    return tk.Token {.type = tk.TokenType.EOF, .literal = "End Of Line" };
+                if (self.current_char == 0) {
+                    return Token {.type = TokenType.EOF, .literal = "End Of Line" };
                 }
                 return errors.LanguageError.IllegalCharacterError;
             }
@@ -70,28 +73,28 @@ pub const Lexer = struct {
     }
 
     fn peakNumber(self: *Lexer) []const u8 {
-        const start = self.currentPosition;
-        while (isNumber(self.currentChar)) {
+        const start = self.current_position;
+        while (isNumber(self.current_char)) {
             self.readChar();
         }
-        return self.input[start..self.currentPosition];
+        return self.input[start..self.current_position];
     }
 
     fn skipWhitespace(self: *Lexer) void {
-        while (isWhitespace(self.currentChar)) {
+        while (isWhitespace(self.current_char)) {
             self.readChar();
         }
     }
 
     fn readChar(self: * Lexer) void {
-        if (self.nextPosition >= self.input.len) {
-            self.currentChar = 0;
+        if (self.next_position >= self.input.len) {
+            self.current_char = 0;
         } else  {
-            self.currentChar = self.input[self.nextPosition];
+            self.current_char = self.input[self.next_position];
         }
 
-        self.currentPosition = self.nextPosition;
-        self.nextPosition += 1;
+        self.current_position = self.next_position;
+        self.next_position += 1;
     }
 };
 
@@ -108,50 +111,50 @@ test "lexer should tokenize all cases" {
         "(10   +2) - (1)"
     };
 
-    const expected_tokens_matrix: [4][9]tk.Token = .{
+    const expected_tokens_matrix: [4][9]Token = .{
         .{
-            tk.Token{.type=tk.TokenType.NUMBER, .literal="50"},
-            tk.Token{.type=tk.TokenType.MINUS, .literal= "-"},
-            tk.Token{.type=tk.TokenType.NUMBER, .literal="12"},
-            tk.Token{.type=tk.TokenType.DIV, .literal = "/"},
-            tk.Token{.type=tk.TokenType.NUMBER, .literal="3"},
-            tk.Token{.type=tk.TokenType.MUL, .literal = "*"},
-            tk.Token{.type=tk.TokenType.NUMBER, .literal="2"},
-            tk.Token{.type=tk.TokenType.PLUS, .literal = "+"},
-            tk.Token{.type=tk.TokenType.NUMBER, .literal="999999999"},
+            Token{.type=TokenType.NUMBER, .literal="50"},
+            Token{.type=TokenType.MINUS, .literal= "-"},
+            Token{.type=TokenType.NUMBER, .literal="12"},
+            Token{.type=TokenType.DIV, .literal = "/"},
+            Token{.type=TokenType.NUMBER, .literal="3"},
+            Token{.type=TokenType.MUL, .literal = "*"},
+            Token{.type=TokenType.NUMBER, .literal="2"},
+            Token{.type=TokenType.PLUS, .literal = "+"},
+            Token{.type=TokenType.NUMBER, .literal="999999999"},
         },
         .{
-            tk.Token{.type=tk.TokenType.NUMBER, .literal="100"},
-            tk.Token{.type=tk.TokenType.DIV, .literal = "/"},
-            tk.Token{.type=tk.TokenType.NUMBER, .literal="5"},
-            tk.Token{.type=tk.TokenType.PLUS, .literal = "+"},
-            tk.Token{.type=tk.TokenType.NUMBER, .literal="60"},
-            tk.Token{.type=tk.TokenType.MINUS, .literal = "-"},
-            tk.Token{.type=tk.TokenType.NUMBER, .literal="8"},
-            tk.Token{.type=tk.TokenType.MUL, .literal = "*"},
-            tk.Token{.type=tk.TokenType.NUMBER, .literal="3"},
+            Token{.type=TokenType.NUMBER, .literal="100"},
+            Token{.type=TokenType.DIV, .literal = "/"},
+            Token{.type=TokenType.NUMBER, .literal="5"},
+            Token{.type=TokenType.PLUS, .literal = "+"},
+            Token{.type=TokenType.NUMBER, .literal="60"},
+            Token{.type=TokenType.MINUS, .literal = "-"},
+            Token{.type=TokenType.NUMBER, .literal="8"},
+            Token{.type=TokenType.MUL, .literal = "*"},
+            Token{.type=TokenType.NUMBER, .literal="3"},
         },
         .{
-            tk.Token{.type=tk.TokenType.NUMBER, .literal="45"},
-            tk.Token{.type=tk.TokenType.MUL, .literal = "*"},
-            tk.Token{.type=tk.TokenType.NUMBER, .literal="2"},
-            tk.Token{.type=tk.TokenType.MINUS, .literal = "-"},
-            tk.Token{.type=tk.TokenType.NUMBER, .literal="120"},
-            tk.Token{.type=tk.TokenType.DIV, .literal = "/"},
-            tk.Token{.type=tk.TokenType.NUMBER, .literal="6"},
-            tk.Token{.type=tk.TokenType.PLUS, .literal = "+"},
-            tk.Token{.type=tk.TokenType.NUMBER, .literal="9"},
+            Token{.type=TokenType.NUMBER, .literal="45"},
+            Token{.type=TokenType.MUL, .literal = "*"},
+            Token{.type=TokenType.NUMBER, .literal="2"},
+            Token{.type=TokenType.MINUS, .literal = "-"},
+            Token{.type=TokenType.NUMBER, .literal="120"},
+            Token{.type=TokenType.DIV, .literal = "/"},
+            Token{.type=TokenType.NUMBER, .literal="6"},
+            Token{.type=TokenType.PLUS, .literal = "+"},
+            Token{.type=TokenType.NUMBER, .literal="9"},
         },
         .{
-            tk.Token{.type=tk.TokenType.LPAREN, .literal="("},
-            tk.Token{.type=tk.TokenType.NUMBER, .literal = "10"},
-            tk.Token{.type=tk.TokenType.PLUS, .literal="+"},
-            tk.Token{.type=tk.TokenType.NUMBER, .literal = "2"},
-            tk.Token{.type=tk.TokenType.RPAREN, .literal=")"},
-            tk.Token{.type=tk.TokenType.MINUS, .literal = "-"},
-            tk.Token{.type=tk.TokenType.LPAREN, .literal="("},
-            tk.Token{.type=tk.TokenType.NUMBER, .literal = "1"},
-            tk.Token{.type=tk.TokenType.RPAREN, .literal=")"},
+            Token{.type=TokenType.LPAREN, .literal="("},
+            Token{.type=TokenType.NUMBER, .literal = "10"},
+            Token{.type=TokenType.PLUS, .literal="+"},
+            Token{.type=TokenType.NUMBER, .literal = "2"},
+            Token{.type=TokenType.RPAREN, .literal=")"},
+            Token{.type=TokenType.MINUS, .literal = "-"},
+            Token{.type=TokenType.LPAREN, .literal="("},
+            Token{.type=TokenType.NUMBER, .literal = "1"},
+            Token{.type=TokenType.RPAREN, .literal=")"},
         },
     };
 
