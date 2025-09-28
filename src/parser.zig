@@ -23,87 +23,98 @@ pub fn freeAST(allocator: std.mem.Allocator, node: *Node) void {
     allocator.destroy(node);
 }
 
-fn postTokenChecker(current_token: Token, next_token: Token) LanguageError!void {
-    switch (current_token.type) {
-        .PLUS, .MINUS, .MUL, .DIV => return postOperatorChecker(next_token),
-        .NUMBER => return postNumberChecker(next_token),
-        .LPAREN => return postLeftParenthesisChecker(next_token),
-        .RPAREN => return postRightParenthesisChecker(next_token),
+fn isOperator(token: Token) bool {
+    return switch(token.type) {
+        .PLUS, .MINUS, .MUL, .DIV => return true,
+        else => return false,
+    };
+}
+
+fn tokenChecker(current_token: Token, next_token: Token, prev_token: ?Token) LanguageError!void {
+    switch(current_token.type) {
+        .NUMBER => return numberTokenChecker(next_token, prev_token),
+        .PLUS, .MINUS, .MUL, .DIV => return operatorTokenChecker(next_token, prev_token),
+        .LPAREN => return leftParenthesisTokenChecker(next_token, prev_token),
+        .RPAREN => return rightParenthesisTokenChecker(next_token, prev_token),
         else => return,
+
     }
 }
 
-fn postNumberChecker(next_token: Token) LanguageError!void {
-    switch (next_token.type) {
-        .LPAREN => return LanguageError.SyntaxError,
-        else => return,
+fn numberTokenChecker(next_token: Token, prev_token: ?Token) LanguageError!void {
+    if (prev_token) |ptoken| {
+        if (ptoken.type == TokenType.RPAREN and next_token.type == TokenType.LPAREN) {
+            return LanguageError.SyntaxError;
+        }
+        if (ptoken.type == TokenType.LPAREN and next_token.type == TokenType.EOF) {
+            return LanguageError.SyntaxError;
+        }
+        if (ptoken.type == TokenType.RPAREN and next_token.type == TokenType.EOF) {
+            return LanguageError.SyntaxError;
+        }
+    } else {
+        if (next_token.type == TokenType.RPAREN or next_token.type == TokenType.LPAREN) {
+            return LanguageError.SyntaxError;
+        }
     }
 }
 
-fn postLeftParenthesisChecker(next_token: Token) LanguageError!void {
-    switch (next_token.type) {
-        .PLUS, .MUL, .DIV, .EOF => return LanguageError.SyntaxError,
-        else => return,
+fn operatorTokenChecker(next_token: Token, prev_token: ?Token) LanguageError!void {
+    if (prev_token) |ptoken| {
+        if (next_token.type == TokenType.EOF) {
+            return LanguageError.SyntaxError;
+        }
+        if (ptoken.type == TokenType.LPAREN) {
+            return LanguageError.SyntaxError;
+        }
+        if (isOperator(next_token)) {
+            return LanguageError.SyntaxError;
+        }
+        if (next_token.type == TokenType.RPAREN) {
+            return LanguageError.SyntaxError;
+        }
+    } else {
+        return LanguageError.SyntaxError;
     }
 }
 
-fn postRightParenthesisChecker(next_token: Token) LanguageError!void {
-    switch (next_token.type) {
-        .NUMBER => return LanguageError.SyntaxError,
-        else => return,
+fn leftParenthesisTokenChecker(next_token: Token, prev_token: ?Token) LanguageError!void {
+    if (prev_token) |ptoken| {
+        if (ptoken.type == TokenType.RPAREN or next_token.type == TokenType.RPAREN) {
+            return LanguageError.SyntaxError;
+        }
+        if(next_token.type == TokenType.EOF) {
+            return LanguageError.SyntaxError;
+        }
+        if (ptoken.type == TokenType.NUMBER) {
+            return LanguageError.SyntaxError;
+        }
+        if (isOperator(next_token)) {
+            return LanguageError.SyntaxError;
+        }
+    } else {
+        if (isOperator(next_token)) {
+            return LanguageError.SyntaxError;
+        }
+        if (next_token.type == TokenType.RPAREN) {
+            return LanguageError.SyntaxError;
+        }
     }
 }
 
-fn postOperatorChecker(next_token: Token) LanguageError!void {
-    switch (next_token.type) {
-        .RPAREN, .EOF => return LanguageError.SyntaxError,
-        else => return,
-    }
-}
-
-fn preTokenChecker(current_token: Token, preToken: ?Token) LanguageError!void {
-    switch (current_token.type) {
-        .PLUS, .MINUS, .MUL, .DIV => return preOperatorChecker(preToken),
-        .NUMBER => return preNumberChecker(preToken),
-        .LPAREN => return preLeftParenthesisChecker(preToken),
-        .RPAREN => return preRightParenthesisChecker(preToken),
-        else => return,
-    }
-}
-
-fn preNumberChecker(prev_token: ?Token) LanguageError!void {
-    if (prev_token == null) {
-        return;
-    }
-    switch (prev_token.?.type) {
-        .RPAREN => return LanguageError.SyntaxError,
-        else => return,
-    }
-}
-
-fn preLeftParenthesisChecker(prev_token: ?Token) LanguageError!void {
-    if (prev_token == null) {
-        return;
-    }
-    switch (prev_token.?.type) {
-        .NUMBER, .RPAREN => return LanguageError.SyntaxError,
-        else => return,
-    }
-}
-
-fn preRightParenthesisChecker(prev_token: ?Token) LanguageError!void {
-    if (prev_token == null) return LanguageError.SyntaxError;
-    switch (prev_token.?.type) {
-        .PLUS, .MINUS, .MUL, .DIV, .LPAREN => return LanguageError.SyntaxError,
-        else => return,
-    }
-}
-
-fn preOperatorChecker(prev_token: ?Token) LanguageError!void {
-    if (prev_token == null) return LanguageError.SyntaxError;
-    switch (prev_token.?.type) {
-        .LPAREN, .PLUS, .MINUS, .MUL, .DIV => return LanguageError.SyntaxError,
-        else => return,
+fn rightParenthesisTokenChecker(next_token: Token, prev_token: ?Token) LanguageError!void {
+    if (prev_token) |ptoken| {
+        if (ptoken.type == TokenType.LPAREN or next_token.type == TokenType.LPAREN) {
+            return LanguageError.SyntaxError;
+        }
+        if (next_token.type == TokenType.NUMBER) {
+            return LanguageError.SyntaxError;
+        }
+        if (isOperator(ptoken)) {
+            return LanguageError.SyntaxError;
+        }
+    } else {
+        return LanguageError.SyntaxError;
     }
 }
 
@@ -134,9 +145,7 @@ pub const Parser = struct {
         var prev_token: ?Token = null;
 
         while (current_token.type != TokenType.EOF) {
-            try preTokenChecker(current_token, prev_token);
-            try postTokenChecker(current_token, next_token);
-
+            try tokenChecker(current_token, next_token, prev_token);
             switch (current_token.type) {
                 .NUMBER => {
                     const node = try self.makeNode(current_token, null, null);
@@ -146,14 +155,16 @@ pub const Parser = struct {
                     try self.operatorsStack.append(self.allocator, current_token);
                 },
                 .RPAREN => {
-                    var index: usize = self.getOperatorsStackLen() - 1;
-                    while (self.operatorsStack.items[index].type != TokenType.LPAREN) {
-                        index -= 1;
+                    if (self.getOperatorsStackLen() > 0) {
+                        var index: usize = self.getOperatorsStackLen() - 1;
+                        while (self.operatorsStack.items[index].type != TokenType.LPAREN) {
+                            index -= 1;
+                        }
+
+                        _ = self.operatorsStack.orderedRemove(index);
+
+                        try self.appendNode();
                     }
-
-                    _ = self.operatorsStack.orderedRemove(index);
-
-                    try self.appendNode();
                 },
                 .DIV, .MUL, .PLUS, .MINUS => {
                     while (self.getOperatorsStackLen() > 0 and getTokenWeight(self.operatorsStack.getLast()) >= getTokenWeight(current_token)) {
@@ -210,20 +221,42 @@ pub const Parser = struct {
 };
 
 test "parser should fail due syntax error" {
-    const cases = [7][]const u8{
-        "1*2-3*1++2",
-        "*1",
-        "1-",
-        "1+1+1+1+1+1+1+1+1+",
-        ")1",
-        "(+)",
-        "(1+1)-(",
+    const cases = [29][]const u8{
+       "1*2-3*1++2",
+       "*1",
+       "1-",
+       "1+1+1+1+1+1+1+1+1+",
+       "(1",
+       "(+)",
+       "(1+1)-(",
+       "1)",
+       "1(",
+       ")1(",
+       "+)",
+       "+(",
+       "+2",
+       "++",
+       "2+)",
+       "2+/",
+       "(+2",
+       "(+",
+       "()",
+       "((+",
+       "(()",
+       "2(2",
+       ")+",
+       ")2",
+       "))",
+       ")(",
+       "2)2",
+       "))(",
+       "())",
     };
 
     for (cases) |case| {
         var parser = Parser.init(testing.allocator, case);
+        defer parser.deinit();
 
         try testing.expectError(LanguageError.SyntaxError, parser.parse());
-        parser.deinit();
     }
 }
