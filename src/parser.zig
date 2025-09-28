@@ -157,8 +157,12 @@ pub const Parser = struct {
                 .RPAREN => {
                     if (self.getOperatorsStackLen() > 0) {
                         var index: usize = self.getOperatorsStackLen() - 1;
-                        while (self.operatorsStack.items[index].type != TokenType.LPAREN) {
+                        while (self.operatorsStack.items[index].type != TokenType.LPAREN and index > 0) {
                             index -= 1;
+                        }
+
+                        if (index == 0 and self.operatorsStack.items[index].type != TokenType.LPAREN) {
+                            return LanguageError.SyntaxError;
                         }
 
                         _ = self.operatorsStack.orderedRemove(index);
@@ -179,6 +183,10 @@ pub const Parser = struct {
             prev_token = current_token;
             current_token = next_token;
             next_token = try self.lexer.nextToken();
+        }
+
+        if (self.getOperatorsStackLen() > 0 and self.operatorsStack.items[0].type == TokenType.LPAREN) {
+            return LanguageError.SyntaxError;
         }
 
         while (self.getOperatorsStackLen() > 0) {

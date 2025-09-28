@@ -6,6 +6,7 @@ const errors = @import("errors");
 const Parser = pr.Parser;
 const TokenType = tk.TokenType;
 const Token = tk.Token;
+const LanguageError = errors.LanguageError;
 
 // TODO: refactor parser code. Try to find zig best practices
 // TODO: support decimals
@@ -33,7 +34,7 @@ fn recursiveEval(allocator: std.mem.Allocator, ast:  * pr.Node) !i32  {
         .PLUS => return ln + rn,
         .MINUS => return ln - rn,
         else => {
-            if (rn == 0) return errors.LanguageError.ZeroDivisionError;
+            if (rn == 0) return LanguageError.ZeroDivisionError;
             return @divFloor(ln, rn);
         },
     };
@@ -54,9 +55,9 @@ pub fn main() !void {
     
     const result = eval(allocator, args[1]) catch |err| {
         switch(err) {
-            errors.LanguageError.SyntaxError => std.debug.print("SyntaxError \n", .{}),
-            errors.LanguageError.IllegalCharacterError => std.debug.print("IllegalCharacter\n", .{}),
-            errors.LanguageError.ZeroDivisionError => std.debug.print("ZeroDivisionError\n", .{}),
+            LanguageError.SyntaxError => std.debug.print("SyntaxError \n", .{}),
+            LanguageError.IllegalCharacterError => std.debug.print("IllegalCharacter\n", .{}),
+            LanguageError.ZeroDivisionError => std.debug.print("ZeroDivisionError\n", .{}),
             else => std.debug.print("Unknown error\n", .{}),
         }
         std.process.exit(1);
@@ -114,3 +115,24 @@ test "eval should be ok" {
     try std.testing.expect(gpa.deinit() == .ok);
 }
 
+test "eval should be ko" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+
+    const cases = [2][]const u8 {
+        "10 + 5 )",
+        "(10 + 5"
+    };
+    const results = [2] LanguageError {
+        LanguageError.SyntaxError,
+        LanguageError.SyntaxError,
+    };
+
+    for(cases, results) |case, result| {
+        _= eval(allocator, case) catch |err| {
+            try std.testing.expect(err == result);
+        };
+    }
+
+    try std.testing.expect(gpa.deinit() == .ok);
+}
