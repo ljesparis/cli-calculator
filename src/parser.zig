@@ -14,7 +14,7 @@ pub const Node = struct {
     token: Token,
     left_node: ?*Node,
     right_node: ?*Node,
-
+    
     const Self = @This();
 
     pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
@@ -159,20 +159,17 @@ pub const Parser = struct {
                     try self.operatorsStack.append(self.allocator, current_token);
                 },
                 .RPAREN => {
-                    if (self.getOperatorsStackLen() > 0) {
-                        var index: usize = self.getOperatorsStackLen() - 1;
-                        while (self.operatorsStack.items[index].type != TokenType.LPAREN and index > 0) {
-                            index -= 1;
-                        }
-
-                        if (index == 0 and self.operatorsStack.items[index].type != TokenType.LPAREN) {
-                            return LanguageError.SyntaxError;
-                        }
-
-                        _ = self.operatorsStack.orderedRemove(index);
-
-                        try self.appendNode();
+                    var index: usize = self.getOperatorsStackLen() - 1;
+                    while (self.operatorsStack.items[index].type != TokenType.LPAREN and index > 0) {
+                        index -= 1;
                     }
+
+                    if (index == 0 and self.operatorsStack.items[index].type != TokenType.LPAREN) {
+                        return LanguageError.SyntaxError;
+                    }
+
+                    _ = self.operatorsStack.orderedRemove(index);
+                    try self.appendNode();
                 },
                 .DIV, .MUL, .PLUS, .MINUS => {
                     while (self.getOperatorsStackLen() > 0 and getTokenWeight(self.operatorsStack.getLast()) >= getTokenWeight(current_token)) {
