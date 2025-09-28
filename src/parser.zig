@@ -14,19 +14,20 @@ pub const Node = struct {
     token: Token,
     left_node: ?*Node,
     right_node: ?*Node,
+
+    const Self = @This();
+
+    pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
+        if (self.*.left_node) |ln| ln.deinit(allocator);
+        if (self.*.right_node) |rn| rn.deinit(allocator);
+        allocator.destroy(self);
+    }
 };
-
-pub fn freeAST(allocator: std.mem.Allocator, node: *Node) void {
-    if (node.*.left_node) |ln| freeAST(allocator, ln);
-    if (node.*.right_node) |rn| freeAST(allocator, rn);
-
-    allocator.destroy(node);
-}
 
 fn isOperator(token: Token) bool {
     return switch(token.type) {
-        .PLUS, .MINUS, .MUL, .DIV => return true,
-        else => return false,
+        .PLUS, .MINUS, .MUL, .DIV => true,
+        else => false,
     };
 }
 
@@ -121,18 +122,21 @@ fn rightParenthesisTokenChecker(next_token: Token, prev_token: ?Token) LanguageE
 pub const Parser = struct {
     allocator: std.mem.Allocator,
     lexer: Lexer,
-    operandsStack: std.ArrayList(*Node) = .{},
-    operatorsStack: std.ArrayList(Token) = .{},
+    operandsStack: std.ArrayList(*Node) = .empty,
+    operatorsStack: std.ArrayList(Token) = .empty,
 
     const Self = @This();
 
     pub fn init(allocator: std.mem.Allocator, input: []const u8) Self {
-        return .{ .allocator = allocator, .lexer = Lexer.init(input) };
+        return .{
+            .allocator = allocator,
+            .lexer = Lexer.init(input),
+        };
     }
 
     pub fn deinit(self: *Self) void {
         for (self.operandsStack.items) |operand| {
-            freeAST(self.allocator, operand);
+            operand.deinit(self.allocator);
         }
 
         self.operandsStack.deinit(self.allocator);
@@ -219,7 +223,7 @@ pub const Parser = struct {
         return node;
     }
 
-    inline fn getTokenWeight(token: Token) u8 {
+    fn getTokenWeight(token: Token) u8 {
         switch (token.type) {
             .DIV, .MUL => return 2,
             .MINUS, .PLUS => return 1,

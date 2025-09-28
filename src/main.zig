@@ -16,7 +16,7 @@ fn eval(allocator: std.mem.Allocator, i: []const u8) !i32 {
     var parser = Parser.init(allocator, i);
     defer parser.deinit();
     const ast = try parser.parse();
-    defer pr.freeAST(allocator, ast);
+    defer ast.deinit(allocator);
     return try recursiveEval(allocator, ast);
 }
 
