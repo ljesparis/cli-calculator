@@ -119,11 +119,15 @@ test "eval should be ko" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
-    const cases = [2][]const u8 {
+    const cases = [4][]const u8 {
         "10 + 5 )",
-        "(10 + 5"
+        "(10 + 5",
+        "(10 + 2))",
+        "5 + 3 * (2 + 1",
     };
-    const results = [2] LanguageError {
+    const results = [4] LanguageError {
+        LanguageError.SyntaxError,
+        LanguageError.SyntaxError,
         LanguageError.SyntaxError,
         LanguageError.SyntaxError,
     };

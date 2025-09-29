@@ -159,7 +159,10 @@ pub const Parser = struct {
                     try self.operatorsStack.append(self.allocator, current_token);
                 },
                 .RPAREN => {
-                    var index: usize = self.getOperatorsStackLen() - 1;
+                    if (self.operatorsLen() == 0) {
+                        return LanguageError.SyntaxError;
+                    }
+                    var index: usize = self.operatorsLen() - 1;
                     while (self.operatorsStack.items[index].type != TokenType.LPAREN and index > 0) {
                         index -= 1;
                     }
@@ -172,7 +175,7 @@ pub const Parser = struct {
                     try self.appendNode();
                 },
                 .DIV, .MUL, .PLUS, .MINUS => {
-                    while (self.getOperatorsStackLen() > 0 and getTokenWeight(self.operatorsStack.getLast()) >= getTokenWeight(current_token)) {
+                    while (self.operatorsLen() > 0 and getTokenWeight(self.operatorsStack.getLast()) >= getTokenWeight(current_token)) {
                         try self.appendNode();
                     }
 
@@ -186,11 +189,7 @@ pub const Parser = struct {
             next_token = try self.lexer.nextToken();
         }
 
-        if (self.getOperatorsStackLen() > 0 and self.operatorsStack.items[0].type == TokenType.LPAREN) {
-            return LanguageError.SyntaxError;
-        }
-
-        while (self.getOperatorsStackLen() > 0) {
+        while (self.operatorsLen() > 0) {
             try self.appendNode();
         }
 
@@ -199,6 +198,10 @@ pub const Parser = struct {
 
     fn appendNode(self: *Self) !void {
         const op = self.operatorsStack.pop();
+        if (op.?.type == TokenType.LPAREN) {
+            return LanguageError.SyntaxError;
+        }
+
         const right_node = self.operandsStack.pop();
         const left_node = self.operandsStack.pop();
 
@@ -206,7 +209,7 @@ pub const Parser = struct {
         try self.operandsStack.append(self.allocator, newNode);
     }
 
-    fn getOperatorsStackLen(self: *Self) usize {
+    fn operatorsLen(self: *Self) usize {
         return self.operatorsStack.items.len;
     }
 
