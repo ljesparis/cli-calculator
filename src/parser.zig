@@ -172,7 +172,9 @@ pub const Parser = struct {
                     }
 
                     _ = self.operatorsStack.orderedRemove(index);
-                    try self.appendNode();
+                    if (self.operatorsLen() > 0) {
+                        try self.appendNode();
+                    }
                 },
                 .DIV, .MUL, .PLUS, .MINUS => {
                     while (self.operatorsLen() > 0 and getTokenWeight(self.operatorsStack.getLast()) >= getTokenWeight(current_token)) {
